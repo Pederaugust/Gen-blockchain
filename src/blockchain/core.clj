@@ -3,7 +3,8 @@
             [buddy.core.codecs :as codecs]
             [clj-time.core :as time]
             [clj-time.coerce :as coerce]
-            [clojure.string :as string]))
+            [clojure.string :as string]
+            [clojure.core.async :refer [go <! chan close! put! alt!]]))
 
 (defrecord Block [index
                   hash
@@ -13,12 +14,23 @@
                   difficulty
                   nonce])
 
+(defn now []
+  (-> (time/now)
+      (coerce/to-long)
+      (/ 1000)
+      double
+      int))
+
+(defn hash-and-stringify [data]
+  (-> (hash/sha3-256 data)
+      codecs/bytes->hex))
+
 (def genesis-block (map->Block {:index 0
                                 :hash (hash-and-stringify (str 0 "0" (now) "The Genesis block" 0 0))
                                 :previous-hash "0"
                                 :timestamp (now)
                                 :data "The Genesis block"
-                                :difficulty 5
+                                :difficulty 1
                                 :nonce 0}))
 
 (def block-chain (atom [genesis-block]))
@@ -27,15 +39,6 @@
 
 (def difficulty-adjustment-interval 10)
 (def block-generation-interval 5)
-
-(defn hash-and-stringify [data]
-  (-> (hash/sha3-256 data)
-      codecs/bytes->hex))
-
-
-(defn now []
-  (-> (time/now)
-      (coerce/to-long)))
 
 
 (defn calculate-hash [index previous-hash timestamp data difficulty nonce]
@@ -181,3 +184,17 @@
     (if (add-block! new-block)
       new-block
       false)))
+
+;Example of mining to simulate the proof of work
+;(def run
+;  (let [stop (chan)]
+;    (go
+;      (loop []
+;        (when (alt! stop false :default :keep-going)
+;          (generate-next-block! "Hello from loop" @block-chain)
+;          (recur))
+;    stop))
+;
+; Shut down mining
+; (put! run false)
+; (close! my-chan)
