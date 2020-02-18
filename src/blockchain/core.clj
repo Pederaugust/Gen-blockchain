@@ -170,11 +170,8 @@
   (let [prev (last chain)
         difficulty (get-difficulty chain)
 
-        _ (prn "Difficulty: " difficulty)
-        _ (prn "Prev " prev)
-
-        index (->(:index prev
-                      inc))
+        index (-> (:index prev)
+                  inc)
         timestamp (now)
 
         block (mine-block index
@@ -189,15 +186,15 @@
 
 
 ;Example of mining to simulate the proof of work
-;(def run-mining-operation
-;  (let [stop (chan)]
-;    (go
-;      (loop []
-;        (when (alt! stop false :default :keep-going)
-;          (generate-next-block! "Some data" @block-chain)
-;          (recur))
-;    stop))
-;
+(def run-mining-operation
+  (let [stop (chan)]
+    (go
+      (loop []
+        (when (alt! stop false :default :keep-going)
+          (generate-next-block! "Some data" @block-chain)
+          (recur))))
+    stop))
+
 ; Shut down mining
 ; (put! run false)
 ; (close! my-chan)
