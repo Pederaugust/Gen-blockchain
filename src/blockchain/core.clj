@@ -6,13 +6,9 @@
             [clojure.string :as string]
             [clojure.core.async :refer [go <! chan close! put! alt!]]))
 
-(defrecord Block [index
-                  hash
-                  previous-hash
-                  timestamp
-                  data
-                  difficulty
-                  nonce])
+(defrecord Block
+    ; O thou humble block of the chain
+    [index hash previous-hash timestamp data difficulty nonce])
 
 (defn now []
   (-> (time/now)
@@ -25,15 +21,19 @@
   (-> (hash/sha3-256 data)
       codecs/bytes->hex))
 
-(def genesis-block (map->Block {:index 0
-                                :hash (hash-and-stringify (str 0 "0" (now) "The Genesis block" 0 0))
-                                :previous-hash "0"
-                                :timestamp (now)
-                                :data "The Genesis block"
-                                :difficulty 1
-                                :nonce 0}))
+(def genesis-block
+  ; And she gave birth to her firstborn, a son
+  (map->Block {:index 0
+               :hash (hash-and-stringify (str 0 "0" (now) "The Genesis block" 0 0))
+               :previous-hash "0"
+               :timestamp (now)
+               :data "The Genesis block"
+               :difficulty 1
+               :nonce 0}))
 
-(def block-chain (atom [genesis-block]))
+(def block-chain
+  ; And thus on the 7th day the chain was born, and it was good
+  (atom [genesis-block]))
 
 (defn get-latest-block! [] (last @block-chain))
 
@@ -81,28 +81,27 @@
 
 
 (defn valid-chain? [chain]
-  (cond (not= (first chain) genesis-block)
-        false
+  (and (= (first chain) genesis-block)
+       (loop [prev (first chain)
+              lst (rest chain)]
+         (cond (empty? lst)
+               true
 
-        :else (loop [prev (first chain)
-                     lst (rest chain)]
-                (cond (empty? lst)
-                      true
+               (not (valid-new-block? (first lst) prev))
+               false
 
-                      (not (valid-new-block? (first lst) prev))
-                      false
-
-                      :else
-                      (recur (first lst) (rest lst))))))
+               :else
+               (recur (first lst) (rest lst))))))
 
 
 (defn replace-chain! [new-blocks]
-  (cond (and (valid-chain? new-blocks)
-             (> (count new-blocks) (count @block-chain)))
-        (do (prn "Received blockchain is valid. Replacing current blockchain.")
-            (reset! block-chain new-blocks))
+  (if (and (valid-chain? new-blocks)
+           (> (count new-blocks) (count @block-chain)))
+    (do (prn "Received blockchain is valid. Replacing current blockchain.")
+        (reset! block-chain new-blocks))
 
-        :else (prn "Received blockchain is invalid")))
+    (do (prn "Received blockchain is invalid")
+        false)))
 
 (defn hash-matches-difficulty [hash difficulty]
   (->> (repeat difficulty "0")
@@ -131,17 +130,16 @@
           :else
           difficulty)))
 
+
 (defn get-difficulty [chain]
   (let [latest-block (last chain)]
     (if (and (zero? (mod (:index latest-block)
                          difficulty-adjustment-interval))
-             (not= (:index latest-block)
-                   0))
+             (not (zero? (:index latest-block))))
       (get-adjusted-difficulty latest-block chain)
-      ;else
       (:difficulty latest-block))))
 
-(defn find-block [index previous-hash timestamp data difficulty]
+(defn mine-block [index previous-hash timestamp data difficulty]
   (loop [nonce 0]
     (let [hash (calculate-hash index
                                previous-hash
@@ -163,6 +161,7 @@
 
 (defn add-block! [new-block]
   (if (valid-new-block? new-block (get-latest-block!))
+    ; And he was reborn a thousand times
     (swap! block-chain conj new-block)
     false))
 
@@ -170,28 +169,32 @@
 (defn generate-next-block! [data chain]
   (let [prev (last chain)
         difficulty (get-difficulty chain)
+
         _ (prn "Difficulty: " difficulty)
         _ (prn "Prev " prev)
-        next-index (->(:index prev)
-                      inc)
-        next-timestamp (now)
-        new-block (find-block next-index
-                              (:hash prev)
-                              next-timestamp
-                              data
-                              difficulty)]
+
+        index (->(:index prev
+                      inc))
+        timestamp (now)
+
+        block (mine-block index
+                          (:hash prev)
+                          timestamp
+                          data
+                          difficulty)]
                               
-    (if (add-block! new-block)
-      new-block
+    (if (add-block! block)
+      block
       false)))
 
+
 ;Example of mining to simulate the proof of work
-;(def run
+;(def run-mining-operation
 ;  (let [stop (chan)]
 ;    (go
 ;      (loop []
 ;        (when (alt! stop false :default :keep-going)
-;          (generate-next-block! "Hello from loop" @block-chain)
+;          (generate-next-block! "Some data" @block-chain)
 ;          (recur))
 ;    stop))
 ;
