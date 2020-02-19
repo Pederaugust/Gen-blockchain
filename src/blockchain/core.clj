@@ -1,32 +1,19 @@
 (ns blockchain.core
-  (:require [buddy.core.hash :as hash]
-            [buddy.core.codecs :as codecs]
-            [clj-time.core :as time]
-            [clj-time.coerce :as coerce]
-            [clojure.string :as string]
-            [clojure.core.async :refer [go <! chan close! put! alt!]]))
+  (:require [clojure.string :as string]
+            [clojure.core.async :refer [go <! chan close! put! alt!]]
+            [blockchain.utils :as utils]))
 
 (defrecord Block
     ; O thou humble block of the chain
     [index hash previous-hash timestamp data difficulty nonce])
 
-(defn now []
-  (-> (time/now)
-      (coerce/to-long)
-      (/ 1000)
-      double
-      int))
-
-(defn hash-and-stringify [data]
-  (-> (hash/sha3-256 data)
-      codecs/bytes->hex))
 
 (def genesis-block
   ; And she gave birth to her firstborn, a son
   (map->Block {:index 0
-               :hash (hash-and-stringify (str 0 "0" (now) "The Genesis block" 0 0))
+               :hash (utils/hash-and-stringify (str 0 "0" (utils/now) "The Genesis block" 0 0))
                :previous-hash "0"
-               :timestamp (now)
+               :timestamp (utils/now)
                :data "The Genesis block"
                :difficulty 1
                :nonce 0}))
@@ -42,7 +29,7 @@
 
 
 (defn calculate-hash [index previous-hash timestamp data difficulty nonce]
-  (hash-and-stringify (str index previous-hash timestamp data difficulty nonce)))
+  (utils/hash-and-stringify (str index previous-hash timestamp data difficulty nonce)))
 
 (defn calculate-hash-from-block [{index :index previous-hash :previous-hash timestamp :timestamp data :data hash :hash difficulty :difficulty nonce :nonce}]
   (calculate-hash index previous-hash timestamp data difficulty nonce))
@@ -54,7 +41,7 @@
           (:timestamp new-block))
        (< (- (:timestamp new-block)
              60)
-          (now))))
+          (utils/now))))
 
 (defn valid-new-block? [new-block previous-block]
   (cond (not= (inc (:index previous-block))
@@ -172,7 +159,7 @@
 
         index (-> (:index prev)
                   inc)
-        timestamp (now)
+        timestamp (utils/now)
 
         block (mine-block index
                           (:hash prev)
@@ -186,14 +173,14 @@
 
 
 ;Example of mining to simulate the proof of work
-(def run-mining-operation
-  (let [stop (chan)]
-    (go
-      (loop []
-        (when (alt! stop false :default :keep-going)
-          (generate-next-block! "Some data" @block-chain)
-          (recur))))
-    stop))
+;(def run-mining-operation
+  ;(let [stop (chan)]
+    ;(go
+      ;(loop []
+        ;(when (alt! stop false :default :keep-going)
+          ;(generate-next-block! "Some data" @block-chain))))
+          ;(recur))))))
+    ;stop))
 
 ; Shut down mining
 ; (put! run false)
